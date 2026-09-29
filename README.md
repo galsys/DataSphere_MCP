@@ -100,6 +100,7 @@ stdio MCP 서버이므로 일반 터미널에서 실행하면 클라이언트 �
 MCP 클라이언트의 서버 설정 예시입니다. 클라이언트가 cwd를 지원하지 않으면
 `DSP_ENV_FILE`, `DSP_CLI_ENTRY`, `DSP_DEV_SECRETS_FILE`을 절대 경로로 지정하세요.
 
+### Claude Code
 ```json
 {
   "mcpServers": {
@@ -115,6 +116,25 @@ MCP 클라이언트의 서버 설정 예시입니다. 클라이언트가 cwd를 
   }
 }
 ```
+
+### Codex
+```toml
+[mcp_servers.datasphere]
+command = "C:/Projects/DataSphere/.venv/Scripts/python.exe"
+args = ["-m", "datasphere_mcp.server"]
+cwd = "C:/Projects/DataSphere"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 150
+
+[mcp_servers.datasphere.env]
+DSP_ENV_FILE = "C:/Projects/DataSphere/.env"
+DSP_CLI_ENTRY = "C:/Projects/DataSphere/.tools/node_modules/@sap/datasphere-cli/terminal.js"
+DSP_NODE_EXECUTABLE = "C:/Program Files/nodejs/node.exe"
+DSP_DEV_SECRETS_FILE = "C:/Projects/DataSphere/.secrets/dev.json"
+DSP_MOCK_MODE = "false"
+```
+
 
 호출 순서:
 

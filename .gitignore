@@ -9,8 +9,8 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
-*.egg-info/
 build/
 dist/
 .ruff_cache/
 dev-smoke-result.json
+*.egg-info/
