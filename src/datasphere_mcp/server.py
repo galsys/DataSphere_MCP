@@ -7,7 +7,7 @@ from fastmcp import FastMCP
 from .config import Settings
 from .logging import configure_logging
 from .runtime import Runtime
-from .tools import dependencies, objects, spaces
+from .tools import dependencies, objects, spaces, tasks, writes
 from .tools.middleware import SafeValidationMiddleware
 
 
@@ -29,6 +29,8 @@ def create_server(settings: Settings | None = None) -> FastMCP:
     spaces.register(mcp, runtime)
     objects.register(mcp, runtime)
     dependencies.register(mcp, runtime)
+    tasks.register(mcp, runtime)
+    writes.register(mcp, runtime)
     return mcp
 
 

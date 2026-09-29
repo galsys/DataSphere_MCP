@@ -12,9 +12,13 @@ from datasphere_mcp.server import create_server
 async def test_full_mcp_workflow_and_schema(settings):
     async with Client(create_server(settings)) as client:
         tools = await client.list_tools()
-        assert {t.name for t in tools} == {"list_spaces", "list_objects", "get_object", "get_dependencies"}
+        assert {t.name for t in tools} == {"list_spaces", "list_objects", "get_object", "get_dependencies",
+                                           "get_task_status", "get_task_log", "create_object", "update_object"}
         for tool in tools:
-            assert tool.annotations.read_only_hint
+            if tool.name in {"create_object", "update_object"}:
+                assert not tool.annotations.read_only_hint
+            else:
+                assert tool.annotations.read_only_hint
             assert "environment" in tool.input_schema["required"]
             assert "secret" not in json.dumps(tool.input_schema).lower()
         args = {"environment": "DEV", "space": "BSG_BI", "object_type": "local-tables", "technical_name": "T_TEST"}
@@ -27,6 +31,28 @@ async def test_full_mcp_workflow_and_schema(settings):
         graph = await client.call_tool("get_dependencies", args)
         assert graph.structured_content["data"]["edges"] == []
         assert graph.structured_content["warnings"]
+        status = await client.call_tool("get_task_status", {"environment": "DEV", "space": "BSG_BI", "log_id": "LOG_TEST"})
+        assert status.structured_content["data"]["status"] == "SUCCEEDED"
+        log = await client.call_tool("get_task_log", {"environment": "DEV", "space": "BSG_BI", "log_id": "LOG_TEST"})
+        assert log.structured_content["data"]["log_id"] == "LOG_TEST"
+
+        settings.dev.allow_write = True
+        created = await client.call_tool("create_object", {
+            "environment": "DEV", "space": "BSG_BI", "object_type": "views",
+            "definition": {"technicalName": "V_CREATED", "definitions": {"V_CREATED": {"kind": "entity"}}},
+        })
+        assert created.structured_content["data"]["technical_name"] == "V_CREATED"
+        updated = await client.call_tool("update_object", {
+            "environment": "DEV", "space": "BSG_BI", "object_type": "views",
+            "technical_name": "V_CREATED", "definition": {"kind": "entity", "updated": True},
+        })
+        assert updated.structured_content["data"]["operation"] == "update"
+        settings.qas.allow_write = True
+        guarded = await client.call_tool("create_object", {
+            "environment": "QAS", "space": "BSG_BI", "object_type": "views",
+            "definition": {"kind": "entity"},
+        })
+        assert guarded.structured_content["error"]["code"] == "CONFIRMATION_REQUIRED"
         failure = await client.call_tool("get_object", {**args, "technical_name": "MISSING"})
         assert failure.structured_content["error"]["code"] == "OBJECT_NOT_FOUND"
         unsupported = await client.call_tool("get_dependencies", {**args, "direction": "DOWNSTREAM"})

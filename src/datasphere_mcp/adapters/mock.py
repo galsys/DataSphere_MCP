@@ -2,6 +2,8 @@ from copy import deepcopy
 
 from ..exceptions import ObjectNotFoundError
 from ..models.objects import ObjectListRequest, ObjectRequest
+from ..models.tasks import TaskLogRequest
+from ..models.writes import ObjectWriteRequest
 
 
 def fixtures():
@@ -40,3 +42,29 @@ class MockAdapter:
             return deepcopy(self.objects[(request.object_type, request.technical_name)])
         except KeyError:
             raise ObjectNotFoundError() from None
+
+    async def get_task_log(self, request: TaskLogRequest, info_level: str):
+        if request.space != "BSG_BI" or request.log_id != "LOG_TEST":
+            raise ObjectNotFoundError()
+        if info_level == "status":
+            return {"logId": request.log_id, "status": "SUCCEEDED"}
+        return {"logId": request.log_id, "status": "SUCCEEDED", "message": "Mock task completed"}
+
+    async def create_object(self, request: ObjectWriteRequest):
+        name = request.technical_name or request.definition.get("technicalName")
+        if not isinstance(name, str):
+            name = "MOCK_CREATED"
+        key = (request.object_type.value, name)
+        if key in self.objects:
+            raise ObjectNotFoundError()
+        self.objects[key] = deepcopy(request.definition)
+        return {"technicalName": name, **deepcopy(request.definition)}
+
+    async def update_object(self, request: ObjectWriteRequest):
+        if not request.technical_name:
+            raise ObjectNotFoundError()
+        key = (request.object_type.value, request.technical_name)
+        if key not in self.objects:
+            raise ObjectNotFoundError()
+        self.objects[key] = deepcopy(request.definition)
+        return {"technicalName": request.technical_name, **deepcopy(request.definition)}

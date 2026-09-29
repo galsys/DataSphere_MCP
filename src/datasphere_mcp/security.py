@@ -1,7 +1,8 @@
 import re
 from typing import Any
 
-from .exceptions import PolicyViolationError
+from .config import Settings
+from .exceptions import ConfirmationRequiredError, PolicyViolationError
 from .models.common import Environment, Risk
 
 
@@ -9,6 +10,16 @@ def authorize(environment: Environment, risk: Risk = Risk.READ) -> None:
     Environment(environment)
     if risk != Risk.READ:
         raise PolicyViolationError()
+
+
+def authorize_write(settings: Settings, environment: Environment, confirmed: bool) -> None:
+    environment = Environment(environment)
+    # Runtime configuration may intentionally omit a base URL in mock mode.
+    tenant = getattr(settings, environment.value.lower())
+    if environment == Environment.PRD or not tenant.allow_write:
+        raise PolicyViolationError()
+    if environment == Environment.QAS and not confirmed:
+        raise ConfirmationRequiredError()
 
 
 class SecretRedactor:

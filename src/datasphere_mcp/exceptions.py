@@ -59,6 +59,11 @@ class PolicyViolationError(DatasphereError):
     message = "Only READ operations are enabled in this release."
 
 
+class ConfirmationRequiredError(DatasphereError):
+    code = "CONFIRMATION_REQUIRED"
+    message = "Explicit confirmation is required for this environment write operation."
+
+
 class UnsupportedCapability(DatasphereError):
     code = "UNSUPPORTED_CAPABILITY"
     message = "This capability is not verified for the selected backend or object format."

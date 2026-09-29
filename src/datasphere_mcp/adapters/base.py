@@ -1,9 +1,20 @@
 from typing import Any, Protocol
 
 from ..models.objects import ObjectListRequest, ObjectRequest
+from ..models.tasks import TaskLogRequest
+from ..models.writes import ObjectWriteRequest
 
 
 class ReadAdapter(Protocol):
     async def list_spaces(self) -> Any: ...
     async def list_objects(self, request: ObjectListRequest) -> Any: ...
     async def read_object(self, request: ObjectRequest) -> dict[str, Any]: ...
+
+
+class TaskAdapter(Protocol):
+    async def get_task_log(self, request: TaskLogRequest, info_level: str) -> dict[str, Any]: ...
+
+
+class WriteAdapter(Protocol):
+    async def create_object(self, request: ObjectWriteRequest) -> dict[str, Any]: ...
+    async def update_object(self, request: ObjectWriteRequest) -> dict[str, Any]: ...

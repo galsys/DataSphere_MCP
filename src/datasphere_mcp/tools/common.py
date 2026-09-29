@@ -15,6 +15,12 @@ READ_METADATA = {
     "tags": {"READ"}, "meta": {"risk": "READ"},
 }
 
+WRITE_METADATA = {
+    "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True,
+                    "openWorldHint": True},
+    "tags": {"WRITE"}, "meta": {"risk": "WRITE"},
+}
+
 
 async def invoke(runtime: Runtime, tool: str, context: dict, operation, response_model: type[Result]):
     started = time.monotonic()

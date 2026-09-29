@@ -1,23 +1,98 @@
 # datasphere-mcp
 
-SAP Datasphere 조회 전용 MCP 서버입니다. Python 3.12+, FastMCP, Pydantic,
+SAP Datasphere 조회 및 제한적 metadata 변경 MCP 서버입니다. Python 3.12+, FastMCP, Pydantic,
 httpx를 사용하며 `Tool → Service → Adapter → SAP` 구조를 따릅니다.
 
-2026-09-29 실제 DEV의 `BSG_BI / local-tables / T_TEST`에 대해 아래 네 도구의
+2026-09-29 실제 DEV의 `BSG_BI / local-tables / T_TEST`에 대해 조회 도구의
 순차 호출을 검증했습니다. 상세 결과와 분석 범위는 [검증 기록](docs/verification.md)에 있습니다.
 
-현재 범위는 AGENTS.md §30의 Phase 0–3 중 다음 네 도구입니다.
+## 구현되어 사용할 수 있는 작업
 
-| 도구 | 실제 연결 경로 | 주요 인자 |
-|---|---|---|
-| `list_spaces` | SAP CLI `spaces list` | environment, limit, offset |
-| `list_objects` | SAP CLI `objects <type> list` | environment, space, object_type, limit, offset |
-| `get_object` | SAP CLI `objects <type> read` | environment, space, object_type, technical_name |
-| `get_dependencies` | 객체 CSN을 읽고 근거가 있는 참조 추출 | 위 인자 + direction, max_depth |
+이 서버는 SAP Datasphere 조회와 서버 정책으로 허용된 metadata 변경을 지원합니다. 모든 도구는
+`environment`를 명시적으로 받아 DEV, QAS, PRD 중 조회 대상을 선택합니다.
 
-Task 조회·실행, metadata 쓰기·삭제는 이번 범위에 포함하지 않습니다.
-DEV/QAS/PRD 모두 READ만 허용하며 서버 설정의 allow_* 값이 true여도 이 버전은
-mutation을 허용하지 않습니다. 환경은 모든 도구에서 필수입니다.
+### Space 조회
+
+`list_spaces`
+
+- 접근 가능한 Space 목록을 조회합니다.
+- `limit`, `offset`으로 페이지를 나눌 수 있습니다.
+- 기본 경로는 SAP CLI `spaces list`입니다.
+- `DSP_*_SPACES_BACKEND=catalog`이면 공식 consumption catalog OData에서 조회합니다.
+  이 경우 modeling Space 전체가 아니라 consumption catalog에 공개된 Space만 반환됩니다.
+
+### 모델링 객체 조회
+
+`list_objects`
+
+- 지정한 Space와 객체 유형의 객체 목록을 조회합니다.
+- `limit`, `offset`으로 페이지를 나눌 수 있으며 다음 페이지가 있으면 `next_offset`을 반환합니다.
+
+`get_object`
+
+- 지정한 객체의 SAP CSN/JSON 정의를 조회합니다.
+- 원본 metadata를 가능한 한 보존하며, 응답의 `data.definition`에서 확인할 수 있습니다.
+
+현재 지원되는 `object_type`은 다음과 같습니다.
+
+`local-tables`, `remote-tables`, `views`, `data-flows`, `replication-flows`,
+`transformation-flows`, `task-chains`, `analytic-models`, `business-entities`,
+`fact-models`, `consumption-models`, `data-access-controls`, `packages`
+
+객체 목록과 정의 조회는 공식 SAP Datasphere CLI의
+`objects <type> list/read` 명령을 사용합니다. 실제 tenant의 권한과 CLI 지원 여부에
+따라 조회 가능한 객체 유형은 달라질 수 있습니다.
+
+### 의존성 조회
+
+`get_dependencies`
+
+- 객체 CSN의 `query`, `projection`, `join`, `Association`, `Composition`을 분석해
+  근거가 있는 **upstream dependency** 그래프를 반환합니다.
+- 각 관계에 원본 위치를 나타내는 `evidence`를 포함합니다.
+- `max_depth`로 탐색 깊이를 제한합니다. 기본값은 3입니다.
+- 결과에는 `complete=false`가 포함될 수 있으며, SAP 전체 lineage를 보장하지 않습니다.
+
+현재 `DOWNSTREAM`과 `BOTH`, cross-space lineage, SQL 문자열 기반 lineage,
+SAP 전용 Analytic Model 형식의 완전한 해석은 지원하지 않습니다.
+
+### Task 실행 로그 조회
+
+`get_task_status`
+
+- SAP task log ID를 기준으로 실행 상태를 조회합니다.
+- SAP CLI `tasks logs get --info-level status`를 사용합니다.
+
+`get_task_log`
+
+- SAP task log ID를 기준으로 상세 실행 로그를 조회합니다.
+- SAP CLI `tasks logs get --info-level details`를 사용합니다.
+
+두 도구 모두 `environment`, `space`, `log_id`가 필요합니다. Task를 새로 실행하거나
+중지·재시도하는 기능은 아직 구현되어 있지 않습니다.
+
+### Metadata 생성·수정
+
+`create_object`
+
+- inline JSON `definition`으로 지정한 Space에 객체를 생성합니다.
+- 서버가 입력 JSON을 임시 파일로 만들어 공식 CLI의 `objects <type> create`에 전달합니다.
+
+`update_object`
+
+- `technical_name`으로 지정한 객체의 metadata를 inline JSON `definition`으로 수정합니다.
+- 서버가 입력 JSON을 임시 파일로 만들어 공식 CLI의 `objects <type> update`에 전달합니다.
+
+쓰기 작업은 기본적으로 비활성화되어 있으며 서버 측 환경 설정의
+`DSP_<ENV>_ALLOW_WRITE=true`가 있어야 합니다. DEV는 설정이 허용할 때 실행되고,
+QAS는 설정과 `confirmed=true`가 모두 필요하며, PRD 쓰기는 항상 거부됩니다.
+MCP 클라이언트는 파일 경로·임의 CLI 옵션·raw shell 명령을 전달할 수 없습니다.
+
+모든 도구의 응답은 `success`, `environment`, `space`, `data`, `warnings` 구조를
+사용하며, 실패 시 안전한 `error.code`와 `error.message`를 반환합니다.
+
+환경은 모든 도구에서 필수입니다. `delete_object`와 Task 실행·중지·재시도는 아직
+구현되어 있지 않습니다.
 
 ## 설치
 
@@ -143,6 +218,8 @@ list_spaces(environment="DEV")
 list_objects(environment="DEV", space="BSG_BI", object_type="local-tables")
 get_object(environment="DEV", space="BSG_BI", object_type="local-tables", technical_name="T_TEST")
 get_dependencies(environment="DEV", space="BSG_BI", object_type="local-tables", technical_name="T_TEST", direction="UPSTREAM")
+get_task_status(environment="DEV", space="BSG_BI", log_id="LOG_ID")
+get_task_log(environment="DEV", space="BSG_BI", log_id="LOG_ID")
 ```
 
 지원 object_type enum: local-tables, remote-tables, views, data-flows,

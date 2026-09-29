@@ -14,6 +14,8 @@ from ..exceptions import (
     ObjectNotFoundError, OperationTimeout, ResponseFormatError, ResponseTooLarge,
 )
 from ..models.objects import ObjectListRequest, ObjectRequest
+from ..models.tasks import TaskLogRequest
+from ..models.writes import ObjectWriteRequest
 
 
 class DatasphereCLIAdapter:
@@ -45,6 +47,42 @@ class DatasphereCLIAdapter:
             raise ResponseFormatError()
         return result
 
+    async def get_task_log(self, request: TaskLogRequest, info_level: str) -> dict[str, Any]:
+        request = TaskLogRequest.model_validate(request.model_dump())
+        if info_level not in {"status", "details"}:
+            raise ResponseFormatError()
+        result = await self._execute(["tasks", "logs", "get", "--space", request.space,
+                                      "--log-id", request.log_id, "--info-level", info_level])
+        if not isinstance(result, dict):
+            raise ResponseFormatError()
+        return result
+
+    async def create_object(self, request: ObjectWriteRequest) -> dict[str, Any]:
+        request = ObjectWriteRequest.model_validate(request.model_dump())
+        name = self._definition_name(request.definition)
+        await self._execute(["objects", request.object_type.value, "create", "--space", request.space],
+                             request.definition, expect_output=False)
+        return await self.read_object(ObjectRequest(environment=request.environment, space=request.space,
+                                                     object_type=request.object_type, technical_name=name))
+
+    async def update_object(self, request: ObjectWriteRequest) -> dict[str, Any]:
+        request = ObjectWriteRequest.model_validate(request.model_dump())
+        if not request.technical_name:
+            raise ResponseFormatError()
+        await self._execute(["objects", request.object_type.value, "update", "--space", request.space,
+                             "--technical-name", request.technical_name], request.definition, expect_output=False)
+        return await self.read_object(ObjectRequest(environment=request.environment, space=request.space,
+                                                     object_type=request.object_type, technical_name=request.technical_name))
+
+    @staticmethod
+    def _definition_name(definition: dict[str, Any]) -> str:
+        definitions = definition.get("definitions")
+        if isinstance(definitions, dict) and len(definitions) == 1:
+            name = next(iter(definitions))
+            if isinstance(name, str) and name:
+                return name
+        raise ResponseFormatError()
+
     async def _read_bounded(self, stream: asyncio.StreamReader) -> bytes:
         data = bytearray()
         while chunk := await stream.read(65536):
@@ -53,7 +91,8 @@ class DatasphereCLIAdapter:
                 raise ResponseTooLarge()
         return bytes(data)
 
-    async def _execute(self, args: list[str]) -> Any:
+    async def _execute(self, args: list[str], input_definition: dict[str, Any] | None = None,
+                       expect_output: bool = True) -> Any:
         async with self._lock:
             entry = self.settings.cli_entry.resolve()
             node = shutil.which(self.settings.node_executable)
@@ -70,11 +109,15 @@ class DatasphereCLIAdapter:
                 "ACCESS_TOKEN": token, "HOST": self.tenant.base_url,
                 "LOG_LEVEL": "2", "NO_COLOR": "1",
             })
-            with TemporaryDirectory(prefix="datasphere-read-") as directory:
+            with TemporaryDirectory(prefix="datasphere-operation-") as directory:
                 # SAP CLI prioritizes its cached token over ACCESS_TOKEN. Give each
                 # invocation a fresh profile so refreshed tokens cannot be shadowed.
                 child_env.update({"HOME": directory, "USERPROFILE": directory})
                 output = Path(directory) / "result.json"
+                input_file = Path(directory) / "definition.json"
+                if input_definition is not None:
+                    input_file.write_text(json.dumps(input_definition, ensure_ascii=False), encoding="utf-8")
+                    args = [*args, "--file-path", str(input_file)]
                 try:
                     async with asyncio.timeout(self.settings.cli_timeout):
                         # Commands are tenant-discovered. A fresh profile must be
@@ -83,9 +126,12 @@ class DatasphereCLIAdapter:
                         await self._run_process(node, entry,
                             ["config", "cache", "init", "--host", self.tenant.base_url],
                             directory, child_env)
-                        await self._run_process(node, entry,
-                            [*args, "--host", self.tenant.base_url, "--output", str(output), "--no-pretty"],
-                            directory, child_env)
+                        command_args = [*args, "--host", self.tenant.base_url]
+                        if expect_output:
+                            command_args.extend(["--output", str(output), "--no-pretty"])
+                        await self._run_process(node, entry, command_args, directory, child_env)
+                    if not expect_output:
+                        return {"submitted": True}
                     if not output.is_file():
                         raise ResponseFormatError()
                     if output.stat().st_size > self.settings.max_response_bytes:

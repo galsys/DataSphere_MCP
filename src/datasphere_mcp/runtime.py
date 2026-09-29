@@ -13,6 +13,8 @@ from .security import SecretRedactor
 from .services.dependency_service import DependencyService
 from .services.object_service import ObjectService
 from .services.space_service import SpaceService
+from .services.task_service import TaskService
+from .services.write_service import WriteService
 
 
 @dataclass
@@ -20,6 +22,8 @@ class Services:
     spaces: SpaceService
     objects: ObjectService
     dependencies: DependencyService
+    tasks: TaskService
+    writes: WriteService
 
 
 class Runtime:
@@ -54,6 +58,7 @@ class Runtime:
             objects = ObjectService(adapter)
             self._services[environment] = Services(
                 SpaceService(adapter, catalog), objects, DependencyService(objects, self.settings),
+                TaskService(adapter), WriteService(adapter, self.settings),
             )
         return self._services[environment]
 

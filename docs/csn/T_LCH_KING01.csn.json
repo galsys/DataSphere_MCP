@@ -1,0 +1,22 @@
+{
+  "definitions": {
+    "T_LCH_KING01": {
+      "kind": "entity",
+      "@EndUserText.label": "T_LCH_KING01",
+      "elements": {
+        "ID": {
+          "key": true,
+          "type": "cds.Integer",
+          "notNull": true
+        },
+        "NAME": {
+          "type": "cds.String",
+          "length": 100
+        },
+        "CREATED_AT": {
+          "type": "cds.Timestamp"
+        }
+      }
+    }
+  }
+}
