@@ -13,8 +13,21 @@ class ObjectWriteRequest(SpaceRequest):
     confirmed: bool = False
 
 
+class ObjectDeleteRequest(SpaceRequest):
+    object_type: DatasphereObjectType
+    technical_name: Identifier
+    confirmed: bool = False
+
+
 class ObjectWriteResult(BaseModel):
     technical_name: str
     object_type: DatasphereObjectType
     definition: dict[str, Any]
     operation: str
+
+
+class ObjectDeleteResult(BaseModel):
+    technical_name: str
+    object_type: DatasphereObjectType
+    deleted: bool
+    operation: str = "delete"

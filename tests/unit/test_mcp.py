@@ -13,12 +13,15 @@ async def test_full_mcp_workflow_and_schema(settings):
     async with Client(create_server(settings)) as client:
         tools = await client.list_tools()
         assert {t.name for t in tools} == {"list_spaces", "list_objects", "get_object", "get_dependencies",
-                                           "get_task_status", "get_task_log", "create_object", "update_object"}
+                                           "get_task_status", "get_task_log", "create_object", "update_object",
+                                           "delete_object"}
         for tool in tools:
-            if tool.name in {"create_object", "update_object"}:
+            if tool.name in {"create_object", "update_object", "delete_object"}:
                 assert not tool.annotations.read_only_hint
             else:
                 assert tool.annotations.read_only_hint
+            if tool.name == "delete_object":
+                assert tool.annotations.destructive_hint
             assert "environment" in tool.input_schema["required"]
             assert "secret" not in json.dumps(tool.input_schema).lower()
         args = {"environment": "DEV", "space": "BSG_BI", "object_type": "local-tables", "technical_name": "T_TEST"}
@@ -53,6 +56,16 @@ async def test_full_mcp_workflow_and_schema(settings):
             "definition": {"kind": "entity"},
         })
         assert guarded.structured_content["error"]["code"] == "CONFIRMATION_REQUIRED"
+        settings.dev.allow_delete = True
+        unconfirmed_delete = await client.call_tool("delete_object", args)
+        assert unconfirmed_delete.structured_content["error"]["code"] == "CONFIRMATION_REQUIRED"
+        deleted = await client.call_tool("delete_object", {**args, "confirmed": True})
+        assert deleted.structured_content["data"] == {
+            "technical_name": "T_TEST", "object_type": "local-tables",
+            "deleted": True, "operation": "delete",
+        }
+        deleted_object = await client.call_tool("get_object", args)
+        assert deleted_object.structured_content["error"]["code"] == "OBJECT_NOT_FOUND"
         failure = await client.call_tool("get_object", {**args, "technical_name": "MISSING"})
         assert failure.structured_content["error"]["code"] == "OBJECT_NOT_FOUND"
         unsupported = await client.call_tool("get_dependencies", {**args, "direction": "DOWNSTREAM"})

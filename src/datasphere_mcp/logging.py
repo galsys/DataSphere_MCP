@@ -18,9 +18,9 @@ def configure_logging():
         logging.getLogger(name).setLevel(logging.CRITICAL)
 
 
-def audit(tool: str, context: dict, duration: float, success: bool, code: str | None):
+def audit(tool: str, context: dict, duration: float, success: bool, code: str | None, risk="READ"):
     logger.info(json.dumps({
         "timestamp": datetime.now(UTC).isoformat(), "tool": tool, "operation": tool,
-        "risk": "READ", "duration_ms": round(duration * 1000), "success": success,
+        "risk": str(risk), "duration_ms": round(duration * 1000), "success": success,
         "error_code": code, **context,
     }, ensure_ascii=True))

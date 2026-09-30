@@ -56,12 +56,12 @@ class ResponseTooLarge(DatasphereError):
 
 class PolicyViolationError(DatasphereError):
     code = "POLICY_VIOLATION"
-    message = "Only READ operations are enabled in this release."
+    message = "The server-side environment policy denies this operation."
 
 
 class ConfirmationRequiredError(DatasphereError):
     code = "CONFIRMATION_REQUIRED"
-    message = "Explicit confirmation is required for this environment write operation."
+    message = "Explicit confirmation is required for this guarded operation."
 
 
 class UnsupportedCapability(DatasphereError):

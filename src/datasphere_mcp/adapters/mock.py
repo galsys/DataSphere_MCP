@@ -3,7 +3,7 @@ from copy import deepcopy
 from ..exceptions import ObjectNotFoundError
 from ..models.objects import ObjectListRequest, ObjectRequest
 from ..models.tasks import TaskLogRequest
-from ..models.writes import ObjectWriteRequest
+from ..models.writes import ObjectDeleteRequest, ObjectWriteRequest
 
 
 def fixtures():
@@ -68,3 +68,9 @@ class MockAdapter:
             raise ObjectNotFoundError()
         self.objects[key] = deepcopy(request.definition)
         return {"technicalName": request.technical_name, **deepcopy(request.definition)}
+
+    async def delete_object(self, request: ObjectDeleteRequest):
+        key = (request.object_type.value, request.technical_name)
+        if key not in self.objects:
+            raise ObjectNotFoundError()
+        del self.objects[key]

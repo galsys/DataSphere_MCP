@@ -88,11 +88,22 @@ SAP 전용 Analytic Model 형식의 완전한 해석은 지원하지 않습니�
 QAS는 설정과 `confirmed=true`가 모두 필요하며, PRD 쓰기는 항상 거부됩니다.
 MCP 클라이언트는 파일 경로·임의 CLI 옵션·raw shell 명령을 전달할 수 없습니다.
 
+### Metadata 삭제
+
+`delete_object`
+
+- `environment`, `space`, `object_type`, `technical_name`, `confirmed`로 객체를 삭제합니다.
+- 현재 삭제는 DEV에서만 허용되며, 서버 측 `DSP_DEV_ALLOW_DELETE=true`와
+  호출의 `confirmed=true`가 모두 필요합니다. QAS와 PRD 삭제는 항상 거부됩니다.
+- 공식 CLI의 `objects <type> delete --space <space> --technical-name <name> --force`를
+  사용합니다. 의존 객체를 무시하는 `--delete-anyway` 옵션은 노출하지 않습니다.
+- Local Table은 `object_type="local-tables"`로 삭제합니다. 이 작업은 객체 정의와
+  저장 데이터를 제거할 수 있으므로 실행 전에 의존성과 대상을 별도로 확인해야 합니다.
+
 모든 도구의 응답은 `success`, `environment`, `space`, `data`, `warnings` 구조를
 사용하며, 실패 시 안전한 `error.code`와 `error.message`를 반환합니다.
 
-환경은 모든 도구에서 필수입니다. `delete_object`와 Task 실행·중지·재시도는 아직
-구현되어 있지 않습니다.
+환경은 모든 도구에서 필수입니다. Task 실행·중지·재시도는 아직 구현되어 있지 않습니다.
 
 ## 설치
 
@@ -220,6 +231,7 @@ get_object(environment="DEV", space="BSG_BI", object_type="local-tables", techni
 get_dependencies(environment="DEV", space="BSG_BI", object_type="local-tables", technical_name="T_TEST", direction="UPSTREAM")
 get_task_status(environment="DEV", space="BSG_BI", log_id="LOG_ID")
 get_task_log(environment="DEV", space="BSG_BI", log_id="LOG_ID")
+delete_object(environment="DEV", space="BSG_BI", object_type="local-tables", technical_name="T_TEST", confirmed=true)
 ```
 
 지원 object_type enum: local-tables, remote-tables, views, data-flows,

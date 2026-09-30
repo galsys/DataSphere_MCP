@@ -22,6 +22,17 @@ def authorize_write(settings: Settings, environment: Environment, confirmed: boo
         raise ConfirmationRequiredError()
 
 
+def authorize_delete(settings: Settings, environment: Environment, confirmed: bool) -> None:
+    environment = Environment(environment)
+    tenant = getattr(settings, environment.value.lower())
+    # Initial policy permits guarded deletes only in DEV. Client input cannot
+    # elevate QAS or PRD, even if their server-side flag is changed accidentally.
+    if environment != Environment.DEV or not tenant.allow_delete:
+        raise PolicyViolationError()
+    if not confirmed:
+        raise ConfirmationRequiredError()
+
+
 class SecretRedactor:
     def __init__(self):
         self._values: set[str] = set()

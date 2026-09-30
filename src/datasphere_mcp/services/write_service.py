@@ -1,8 +1,10 @@
 from ..adapters.base import WriteAdapter
 from ..exceptions import ResponseFormatError
 from ..models.common import Result
-from ..models.writes import ObjectWriteRequest, ObjectWriteResult
-from ..security import authorize_write
+from ..models.writes import (
+    ObjectDeleteRequest, ObjectDeleteResult, ObjectWriteRequest, ObjectWriteResult,
+)
+from ..security import authorize_delete, authorize_write
 
 
 class WriteService:
@@ -17,6 +19,14 @@ class WriteService:
         if not request.technical_name:
             raise ResponseFormatError()
         return await self._write(request, "update")
+
+    async def delete_object(self, request: ObjectDeleteRequest) -> Result[ObjectDeleteResult]:
+        request = ObjectDeleteRequest.model_validate(request.model_dump())
+        authorize_delete(self.settings, request.environment, request.confirmed)
+        await self.adapter.delete_object(request)
+        return Result[ObjectDeleteResult](environment=request.environment, space=request.space,
+            data=ObjectDeleteResult(technical_name=request.technical_name,
+                                    object_type=request.object_type, deleted=True))
 
     async def _write(self, request: ObjectWriteRequest, operation: str) -> Result[ObjectWriteResult]:
         request = ObjectWriteRequest.model_validate(request.model_dump())

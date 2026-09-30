@@ -1,7 +1,9 @@
-from ..models.common import Environment, Identifier, Result
+from ..models.common import Environment, Identifier, Result, Risk
 from ..models.objects import DatasphereObjectType
-from ..models.writes import ObjectWriteRequest, ObjectWriteResult
-from .common import WRITE_METADATA, invoke
+from ..models.writes import (
+    ObjectDeleteRequest, ObjectDeleteResult, ObjectWriteRequest, ObjectWriteResult,
+)
+from .common import DESTRUCTIVE_METADATA, WRITE_METADATA, invoke
 
 
 def register(mcp, runtime):
@@ -14,7 +16,7 @@ def register(mcp, runtime):
             "environment": environment, "space": space, "object_type": object_type,
         }, lambda: runtime.services(environment).writes.create_object(ObjectWriteRequest(
             environment=environment, space=space, object_type=object_type,
-            definition=definition, confirmed=confirmed)), Result[ObjectWriteResult])
+            definition=definition, confirmed=confirmed)), Result[ObjectWriteResult], Risk.WRITE)
 
     @mcp.tool(**WRITE_METADATA)
     async def update_object(environment: Environment, space: Identifier,
@@ -27,4 +29,17 @@ def register(mcp, runtime):
         }, lambda: runtime.services(environment).writes.update_object(ObjectWriteRequest(
             environment=environment, space=space, object_type=object_type,
             technical_name=technical_name, definition=definition, confirmed=confirmed)),
-            Result[ObjectWriteResult])
+            Result[ObjectWriteResult], Risk.WRITE)
+
+    @mcp.tool(**DESTRUCTIVE_METADATA)
+    async def delete_object(environment: Environment, space: Identifier,
+                            object_type: DatasphereObjectType, technical_name: Identifier,
+                            delete_object: bool = False) -> Result[ObjectDeleteResult]:
+        """Delete a DEV Datasphere object after server opt-in and explicit confirmation."""
+        return await invoke(runtime, "delete_object", {
+            "environment": environment, "space": space, "object_type": object_type,
+            "technical_name": technical_name,
+        }, lambda: runtime.services(environment).writes.delete_object(ObjectDeleteRequest(
+            environment=environment, space=space, object_type=object_type,
+            technical_name=technical_name, confirmed=confirmed)),
+            Result[ObjectDeleteResult], Risk.DESTRUCTIVE)

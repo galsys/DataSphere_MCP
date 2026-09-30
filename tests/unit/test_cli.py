@@ -9,7 +9,7 @@ from datasphere_mcp.adapters.cli import DatasphereCLIAdapter
 from datasphere_mcp.config import TenantConfig
 from datasphere_mcp.exceptions import CLIExecutionError, OperationTimeout, ResponseTooLarge
 from datasphere_mcp.models.objects import ObjectListRequest, ObjectRequest
-from datasphere_mcp.models.writes import ObjectWriteRequest
+from datasphere_mcp.models.writes import ObjectDeleteRequest, ObjectWriteRequest
 
 
 class Process:
@@ -66,6 +66,9 @@ async def test_commands_and_secret_isolation(settings, tmp_path, monkeypatch):
                                                    definition={"definitions": {"V_CREATED": {"kind": "entity"}}}))
         await cli.update_object(ObjectWriteRequest(environment="DEV", space="BSG_BI", object_type="views",
                                                    technical_name="V_TEST", definition={"kind": "entity"}))
+        await cli.delete_object(ObjectDeleteRequest(environment="DEV", space="BSG_BI",
+                                                    object_type="local-tables", technical_name="T_TEST",
+                                                    confirmed=True))
         assert calls[0][0][2:5] == ("config", "cache", "init")
         assert calls[1][0][2:4] == ("spaces", "list")
         assert calls[3][0][2:11] == ("objects", "local-tables", "list", "--space", "BSG_BI", "--top", "7", "--skip", "14")
@@ -78,6 +81,10 @@ async def test_commands_and_secret_isolation(settings, tmp_path, monkeypatch):
         assert "--file-path" in calls[11][0]
         assert "--output" not in calls[11][0]
         assert calls[13][0][2:9] == ("objects", "views", "read", "--space", "BSG_BI", "--technical-name", "V_TEST")
+        assert calls[15][0][2:10] == ("objects", "local-tables", "delete", "--space", "BSG_BI",
+                                      "--technical-name", "T_TEST", "--force")
+        assert "--delete-anyway" not in calls[15][0]
+        assert "--output" not in calls[15][0]
         assert not Path(calls[0][1]["cwd"]).exists()
         assert calls[0][1]["env"]["USERPROFILE"] == calls[1][1]["env"]["USERPROFILE"]
         assert calls[0][1]["env"]["USERPROFILE"] != calls[2][1]["env"]["USERPROFILE"]

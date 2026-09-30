@@ -15,7 +15,7 @@ from ..exceptions import (
 )
 from ..models.objects import ObjectListRequest, ObjectRequest
 from ..models.tasks import TaskLogRequest
-from ..models.writes import ObjectWriteRequest
+from ..models.writes import ObjectDeleteRequest, ObjectWriteRequest
 
 
 class DatasphereCLIAdapter:
@@ -73,6 +73,13 @@ class DatasphereCLIAdapter:
                              "--technical-name", request.technical_name], request.definition, expect_output=False)
         return await self.read_object(ObjectRequest(environment=request.environment, space=request.space,
                                                      object_type=request.object_type, technical_name=request.technical_name))
+
+    async def delete_object(self, request: ObjectDeleteRequest) -> None:
+        request = ObjectDeleteRequest.model_validate(request.model_dump())
+        await self._execute([
+            "objects", request.object_type.value, "delete", "--space", request.space,
+            "--technical-name", request.technical_name, "--force",
+        ], expect_output=False)
 
     @staticmethod
     def _definition_name(definition: dict[str, Any]) -> str:

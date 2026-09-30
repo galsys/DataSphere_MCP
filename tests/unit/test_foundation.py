@@ -2,10 +2,12 @@ import pytest
 from pydantic import ValidationError
 
 from datasphere_mcp.config import Settings, TenantConfig
-from datasphere_mcp.exceptions import ConfigurationError, PolicyViolationError
+from datasphere_mcp.exceptions import (
+    ConfigurationError, ConfirmationRequiredError, PolicyViolationError,
+)
 from datasphere_mcp.models.common import Environment, Page, Risk
 from datasphere_mcp.models.objects import ObjectRequest
-from datasphere_mcp.security import SecretRedactor, authorize
+from datasphere_mcp.security import SecretRedactor, authorize, authorize_delete
 
 
 def test_nested_dotenv(tmp_path):
@@ -38,6 +40,19 @@ def test_read_only_policy(env):
     for risk in (Risk.WRITE, Risk.EXECUTE, Risk.DESTRUCTIVE):
         with pytest.raises(PolicyViolationError):
             authorize(env, risk)
+
+
+def test_delete_policy(settings):
+    with pytest.raises(PolicyViolationError):
+        authorize_delete(settings, Environment.DEV, confirmed=True)
+    settings.dev.allow_delete = True
+    with pytest.raises(ConfirmationRequiredError):
+        authorize_delete(settings, Environment.DEV, confirmed=False)
+    authorize_delete(settings, Environment.DEV, confirmed=True)
+    for environment in (Environment.QAS, Environment.PRD):
+        getattr(settings, environment.value.lower()).allow_delete = True
+        with pytest.raises(PolicyViolationError):
+            authorize_delete(settings, environment, confirmed=True)
 
 
 def test_limits():

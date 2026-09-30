@@ -5,10 +5,12 @@ from datasphere_mcp.exceptions import ObjectNotFoundError, ResponseFormatError, 
 from datasphere_mcp.models.common import Environment, Page
 from datasphere_mcp.models.dependencies import DependencyRequest, Direction
 from datasphere_mcp.models.objects import ObjectListRequest, ObjectRequest
+from datasphere_mcp.models.writes import ObjectDeleteRequest
 from datasphere_mcp.services.csn import references
 from datasphere_mcp.services.dependency_service import DependencyService
 from datasphere_mcp.services.object_service import ObjectService
 from datasphere_mcp.services.space_service import SpaceService
+from datasphere_mcp.services.write_service import WriteService
 
 
 async def test_spaces_and_object_pagination():
@@ -79,3 +81,18 @@ async def test_unrecognized_list_is_not_empty_success():
     adapter.list_objects = bad
     with pytest.raises(ResponseFormatError):
         await ObjectService(adapter).list_objects(ObjectListRequest(environment="DEV", space="BSG_BI", object_type="views"))
+
+
+async def test_delete_service_removes_object(settings):
+    settings.dev.allow_delete = True
+    adapter = MockAdapter()
+    service = WriteService(adapter, settings)
+    request = ObjectDeleteRequest(environment="DEV", space="BSG_BI", object_type="local-tables",
+                                  technical_name="T_TEST", confirmed=True)
+    result = await service.delete_object(request)
+    assert result.data.deleted and result.data.operation == "delete"
+    with pytest.raises(ObjectNotFoundError):
+        await adapter.read_object(ObjectRequest(environment="DEV", space="BSG_BI",
+                                                object_type="local-tables", technical_name="T_TEST"))
+    with pytest.raises(ObjectNotFoundError):
+        await service.delete_object(request)

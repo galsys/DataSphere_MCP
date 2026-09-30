@@ -2,7 +2,7 @@ from typing import Any, Protocol
 
 from ..models.objects import ObjectListRequest, ObjectRequest
 from ..models.tasks import TaskLogRequest
-from ..models.writes import ObjectWriteRequest
+from ..models.writes import ObjectDeleteRequest, ObjectWriteRequest
 
 
 class ReadAdapter(Protocol):
@@ -18,3 +18,4 @@ class TaskAdapter(Protocol):
 class WriteAdapter(Protocol):
     async def create_object(self, request: ObjectWriteRequest) -> dict[str, Any]: ...
     async def update_object(self, request: ObjectWriteRequest) -> dict[str, Any]: ...
+    async def delete_object(self, request: ObjectDeleteRequest) -> None: ...

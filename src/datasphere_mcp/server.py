@@ -24,7 +24,7 @@ def create_server(settings: Settings | None = None) -> FastMCP:
     mcp = FastMCP("datasphere-mcp", version="0.1.0", lifespan=lifespan,
                   middleware=[SafeValidationMiddleware()],
                   mask_error_details=True, strict_input_validation=False,
-                  instructions="Read-only SAP Datasphere. Always select an environment explicitly. "
+                  instructions="Policy-controlled SAP Datasphere access. Always select an environment explicitly. "
                                "Dependency results are partial CSN evidence, not complete lineage.")
     spaces.register(mcp, runtime)
     objects.register(mcp, runtime)
